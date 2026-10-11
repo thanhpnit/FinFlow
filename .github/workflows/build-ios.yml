@@ -1,0 +1,57 @@
+name: Build iOS IPA
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch: # Cho phép bấm nút "Run workflow" thủ công trên web GitHub
+
+jobs:
+  build-ipa:
+    runs-on: macos-latest
+
+    steps:
+      - name: Kiểm tra mã nguồn (Checkout)
+        uses: actions/checkout@v4
+
+      - name: Cài đặt Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Cài đặt dependencies
+        run: npm install
+
+      - name: Biên dịch ứng dụng Web
+        run: npm run build
+
+      - name: Đồng bộ vào dự án iOS (Capacitor Sync)
+        run: npx cap sync ios
+
+      - name: Biên dịch Xcode sang App (.app)
+        run: |
+          cd ios/App
+          xcodebuild build \
+            -project App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Đóng gói thành file IPA (FinFlow.ipa)
+        run: |
+          cd ios/App
+          mkdir -p Payload
+          cp -r build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -r FinFlow.ipa Payload
+          ls -la FinFlow.ipa
+
+      - name: Xuất file IPA cho người dùng tải về
+        uses: actions/upload-artifact@v4
+        with:
+          name: FinFlow-iOS-IPA
+          path: ios/App/FinFlow.ipa
+          retention-days: 7
+
